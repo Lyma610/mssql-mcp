@@ -1,0 +1,19 @@
+{
+  "servers": {
+    "mssql-explorer-writes": {
+      "type": "stdio",
+      "command": "C:\\path\\to\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "mssql_mcp"],
+      "env": {
+        "MSSQL_SERVER": "sql.example.test",
+        "MSSQL_DATABASE": "application_sandbox",
+        "MSSQL_TRUSTED_CONNECTION": "yes",
+        "MSSQL_APPLICATION_INTENT": "ReadWrite",
+        "MSSQL_ENABLE_WRITE_TOOLS": "yes",
+        "MSSQL_ALLOWED_WRITE_OPERATIONS": "INSERT,UPDATE,DELETE",
+        "MSSQL_MAX_AFFECTED_ROWS": "25",
+        "MSSQL_CHANGE_TOKEN_TTL_SECONDS": "300"
+      }
+    }
+  }
+}
