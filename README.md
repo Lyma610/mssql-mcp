@@ -1,70 +1,70 @@
 # mssql-mcp
 
-A read-first Model Context Protocol (MCP) server for discovering, inspecting, analyzing, and carefully changing Microsoft SQL Server databases.
+Um servidor MCP (Model Context Protocol) com foco em leitura para descobrir, inspecionar, analisar e modificar com cautela bancos de dados Microsoft SQL Server.
 
-`mssql-mcp` gives MCP-compatible AI clients a structured alternative to ad hoc database access. It exposes 15 read-only tools for metadata and bounded analysis. Two additional state-changing tools can be enabled explicitly with operation allowlists, one-time confirmations, transactions, and rollback controls.
+O `mssql-mcp` oferece a clientes de IA compatíveis com MCP uma alternativa estruturada ao acesso ad hoc a bancos de dados. Ele expõe 15 ferramentas somente leitura para metadados e análise delimitada. Duas ferramentas adicionais de modificação de estado podem ser habilitadas explicitamente com listas de operações permitidas, confirmações de uso único, transações e controles de rollback.
 
-> Security boundary: validation and confirmation are defense in depth. SQL Server permissions remain authoritative. State-changing tools are absent by default and must use a dedicated least-privilege identity.
+> Limite de segurança: validação e confirmação são camadas de defesa em profundidade. As permissões do SQL Server permanecem como autoridade final. As ferramentas de modificação de estado estão ausentes por padrão e devem utilizar uma identidade dedicada com privilégios mínimos.
 
-## What Problem It Solves
+## Qual Problema Resolve
 
-Large SQL Server estates are difficult to understand from table names alone. Application behavior may be distributed across stored procedures, views, functions, foreign keys, and legacy naming conventions. This server lets an MCP client answer questions such as:
+Grandes ambientes SQL Server são difíceis de compreender apenas pelos nomes das tabelas. O comportamento da aplicação pode estar distribuído entre stored procedures, views, funções, chaves estrangeiras e convenções de nomenclatura legadas. Este servidor permite que um cliente MCP responda perguntas como:
 
-- Which schemas, tables, views, procedures, and functions exist?
-- What columns, keys, foreign keys, and indexes define a table?
-- Which objects reference a table?
-- Which tables and objects does a procedure depend on?
-- Where does a business term appear in programmable SQL objects?
-- Can a small read-only query confirm a hypothesis about the data?
+- Quais schemas, tabelas, views, procedures e funções existem?
+- Quais colunas, chaves, chaves estrangeiras e índices definem uma tabela?
+- Quais objetos referenciam uma tabela?
+- De quais tabelas e objetos uma procedure depende?
+- Onde um termo de negócio aparece em objetos SQL programáveis?
+- Uma pequena consulta somente leitura pode confirmar uma hipótese sobre os dados?
 
-## Highlights
+## Destaques
 
-- Official Python MCP SDK over `stdio`.
-- Windows integrated authentication or SQL authentication.
-- Parameterized internal metadata queries.
-- Bounded cursor fetching and configurable query timeouts.
-- Pagination for large catalogs.
-- Read validator that rejects DML, DDL, `SELECT INTO`, multiple statements, sequence mutation, dangerous row locks, and external rowset providers.
-- Optional write tools with operation allowlists, exact-query fingerprints, expiring one-time tokens, transactions, rollback, and affected-row limits.
-- Destructive MCP annotations so compatible clients can require human confirmation.
-- Dependency injection for isolated unit testing.
-- 93%+ test coverage enforced in CI.
-- Optional plain or JSON logging with file rotation.
+- SDK oficial Python MCP via `stdio`.
+- Autenticação integrada do Windows ou autenticação SQL.
+- Consultas internas de metadados parametrizadas.
+- Busca limitada por cursor e timeouts de consulta configuráveis.
+- Paginação para catálogos grandes.
+- Validador de leitura que rejeita DML, DDL, `SELECT INTO`, múltiplos statements, mutação de sequências, row locks perigosos e provedores de rowset externos.
+- Ferramentas de escrita opcionais com listas de operações permitidas, fingerprints de consulta exatos, tokens de uso único com expiração, transações, rollback e limites de linhas afetadas.
+- Anotações MCP destrutivas para que clientes compatíveis possam exigir confirmação humana.
+- Injeção de dependência para testes unitários isolados.
+- Cobertura de testes de 93%+ aplicada no CI.
+- Logging opcional em texto simples ou JSON com rotação de arquivos.
 
-## Architecture
+## Arquitetura
 
 ```mermaid
 flowchart LR
-    Client[MCP client] -->|JSON-RPC over stdio| Server[FastMCP server]
-    Server --> Registry[Tool registry]
-    Registry --> Catalog[Catalog tools]
-    Registry --> Schema[Schema tools]
-    Registry --> Dependencies[Dependency tools]
-    Registry --> Query[Query and health tools]
-    Registry -. opt-in .-> Changes[Change tools]
-    Catalog --> DB[ODBC database layer]
+    Client[Cliente MCP] -->|JSON-RPC over stdio| Server[Servidor FastMCP]
+    Server --> Registry[Registro de ferramentas]
+    Registry --> Catalog[Ferramentas de catálogo]
+    Registry --> Schema[Ferramentas de schema]
+    Registry --> Dependencies[Ferramentas de dependências]
+    Registry --> Query[Ferramentas de consulta e saúde]
+    Registry -. opt-in .-> Changes[Ferramentas de alteração]
+    Catalog --> DB[Camada de banco ODBC]
     Schema --> DB
     Dependencies --> DB
-    Query --> Validator[Read validator]
-    Changes --> WriteValidator[Write validator]
-    Changes --> Approval[One-time approval store]
+    Query --> Validator[Validador de leitura]
+    Changes --> WriteValidator[Validador de escrita]
+    Changes --> Approval[Store de aprovação única]
     Query --> DB
     Changes --> DB
     DB --> SQLServer[(Microsoft SQL Server)]
 ```
 
-The server factory creates configuration, an ODBC database adapter, tool services, and the MCP registry. Tool services depend on a small database protocol, so tests use deterministic fakes instead of a live database. See [docs/architecture.md](docs/architecture.md) for component responsibilities and execution flow.
+A factory do servidor cria a configuração, um adaptador de banco de dados ODBC, serviços de ferramentas e o registro MCP. Os serviços de ferramentas dependem de um protocolo de banco de dados mínimo, então os testes utilizam fakes determinísticos em vez de um banco real. Consulte [docs/architecture.md](docs/architecture.md) para responsabilidades de componentes e fluxo de execução.
 
-## Requirements
+## Requisitos
 
-- Python 3.11 or newer.
-- Microsoft SQL Server with network access from the MCP host.
-- Microsoft ODBC Driver 18 for SQL Server, or another configured compatible driver.
-- A SQL Server identity with metadata visibility and read permissions. Write-enabled deployments require separately scoped DML or DDL permissions.
+- Python 3.11 ou mais recente.
+- Microsoft SQL Server com acesso de rede a partir do host MCP.
+- Microsoft ODBC Driver 18 para SQL Server, ou outro driver compatível configurado.
+- Uma identidade SQL Server com visibilidade de metadados e permissões de leitura. Implantações com escrita habilitada requerem permissões DML ou DDL com escopo separado.
 
-The project is developed on Windows but the Python package is portable to platforms supported by `pyodbc` and the Microsoft ODBC driver.
+O projeto é desenvolvido no Windows, mas o pacote Python é portável para plataformas suportadas pelo `pyodbc` e pelo driver Microsoft ODBC.
 
-## Installation
+## Instalação
 
 ```bash
 git clone <repository-url>
@@ -72,7 +72,7 @@ cd mssql-mcp
 python -m venv .venv
 ```
 
-Activate the environment:
+Ative o ambiente:
 
 ```powershell
 # Windows PowerShell
@@ -80,25 +80,25 @@ Activate the environment:
 ```
 
 ```bash
-# Linux or macOS
+# Linux ou macOS
 source .venv/bin/activate
 ```
 
-Install the package:
+Instale o pacote:
 
 ```bash
 python -m pip install -e .
 ```
 
-For development tools:
+Para ferramentas de desenvolvimento:
 
 ```bash
 python -m pip install -e ".[dev]"
 ```
 
-## Configuration
+## Configuração
 
-Create a local environment file:
+Crie um arquivo de ambiente local:
 
 ```powershell
 Copy-Item .env.example .env
@@ -108,38 +108,38 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-### Environment Variables
+### Variáveis de Ambiente
 
-| Variable | Default | Purpose |
+| Variável | Padrão | Finalidade |
 | --- | --- | --- |
-| `MSSQL_CONNECTION_STRING` | empty | Complete ODBC connection string. When set, it takes precedence over the individual connection fields below. |
-| `MSSQL_DRIVER` | `ODBC Driver 18 for SQL Server` | Installed ODBC driver name. |
-| `MSSQL_SERVER` | `localhost` | SQL Server host, instance, or listener. |
-| `MSSQL_DATABASE` | `master` | Initial database used by metadata and query tools. |
-| `MSSQL_TRUSTED_CONNECTION` | `yes` | Enables Windows integrated authentication. |
-| `MSSQL_USERNAME` | empty | SQL login when trusted authentication is disabled. |
-| `MSSQL_PASSWORD` | empty | SQL password when trusted authentication is disabled. |
-| `MSSQL_ENCRYPT` | `yes` | Enables encrypted ODBC transport. |
-| `MSSQL_TRUST_CERTIFICATE` | `no` | Bypasses certificate-chain validation when enabled. Use only when justified. |
-| `MSSQL_APPLICATION_INTENT` | `ReadOnly` | Declares read intent to SQL Server routing. This does not grant or enforce permissions. |
-| `MSSQL_TIMEOUT_CONNECTION` | `10` | Connection timeout in seconds. |
-| `MSSQL_TIMEOUT_QUERY` | `30` | Per-query timeout in seconds. |
-| `MSSQL_MAX_ROWS` | `100` | Maximum rows returned by one tool call. |
-| `MSSQL_MAX_QUERY_LENGTH` | `10000` | Maximum accepted ad hoc query length. |
-| `MSSQL_ENABLE_WRITE_TOOLS` | `no` | Registers the two state-changing tools when explicitly enabled. Requires `ReadWrite` intent. |
-| `MSSQL_ALLOWED_WRITE_OPERATIONS` | `INSERT,UPDATE,DELETE` | Comma-separated operation allowlist. DDL is never enabled implicitly. |
-| `MSSQL_MAX_AFFECTED_ROWS` | `100` | Rolls back DML when the reported affected-row count exceeds this value. |
-| `MSSQL_CHANGE_TOKEN_TTL_SECONDS` | `300` | Lifetime of a one-time SQL change approval. |
-| `MSSQL_MAX_PENDING_CHANGES` | `100` | Maximum in-memory approvals awaiting execution. |
-| `MCP_SERVER_NAME` | `Microsoft SQL Server Explorer` | Name presented to MCP clients. |
-| `LOG_LEVEL` | `INFO` | Python logging level. |
-| `LOG_FORMAT` | `plain` | `plain` or `json`. |
-| `LOG_FILE` | empty | Optional rotating log file path. Logs otherwise go to stderr only. |
-| `MSSQL_MCP_ENV_FILE` | empty | Optional explicit path to an environment file. |
+| `MSSQL_CONNECTION_STRING` | vazio | String de conexão ODBC completa. Quando definida, tem precedência sobre os campos de conexão individuais abaixo. |
+| `MSSQL_DRIVER` | `ODBC Driver 18 for SQL Server` | Nome do driver ODBC instalado. |
+| `MSSQL_SERVER` | `localhost` | Host, instância ou listener do SQL Server. |
+| `MSSQL_DATABASE` | `master` | Banco de dados inicial usado pelas ferramentas de metadados e consulta. |
+| `MSSQL_TRUSTED_CONNECTION` | `yes` | Habilita autenticação integrada do Windows. |
+| `MSSQL_USERNAME` | vazio | Login SQL quando a autenticação confiável está desabilitada. |
+| `MSSQL_PASSWORD` | vazio | Senha SQL quando a autenticação confiável está desabilitada. |
+| `MSSQL_ENCRYPT` | `yes` | Habilita transporte ODBC criptografado. |
+| `MSSQL_TRUST_CERTIFICATE` | `no` | Ignora a validação da cadeia de certificados quando habilitado. Use apenas quando justificado. |
+| `MSSQL_APPLICATION_INTENT` | `ReadOnly` | Declara intenção de leitura para o roteamento do SQL Server. Não concede nem aplica permissões. |
+| `MSSQL_TIMEOUT_CONNECTION` | `10` | Timeout de conexão em segundos. |
+| `MSSQL_TIMEOUT_QUERY` | `30` | Timeout por consulta em segundos. |
+| `MSSQL_MAX_ROWS` | `100` | Número máximo de linhas retornadas por chamada de ferramenta. |
+| `MSSQL_MAX_QUERY_LENGTH` | `10000` | Comprimento máximo aceito de consulta ad hoc. |
+| `MSSQL_ENABLE_WRITE_TOOLS` | `no` | Registra as duas ferramentas de modificação de estado quando habilitado explicitamente. Requer intent `ReadWrite`. |
+| `MSSQL_ALLOWED_WRITE_OPERATIONS` | `INSERT,UPDATE,DELETE` | Lista de operações permitidas separadas por vírgula. DDL nunca é habilitado implicitamente. |
+| `MSSQL_MAX_AFFECTED_ROWS` | `100` | Reverte o DML quando o número de linhas afetadas reportado excede este valor. |
+| `MSSQL_CHANGE_TOKEN_TTL_SECONDS` | `300` | Tempo de vida de uma aprovação de alteração SQL de uso único. |
+| `MSSQL_MAX_PENDING_CHANGES` | `100` | Número máximo de aprovações em memória aguardando execução. |
+| `MCP_SERVER_NAME` | `Microsoft SQL Server Explorer` | Nome apresentado aos clientes MCP. |
+| `LOG_LEVEL` | `INFO` | Nível de logging do Python. |
+| `LOG_FORMAT` | `plain` | `plain` ou `json`. |
+| `LOG_FILE` | vazio | Caminho opcional para arquivo de log com rotação. Logs vão para stderr quando não definido. |
+| `MSSQL_MCP_ENV_FILE` | vazio | Caminho explícito opcional para um arquivo de ambiente. |
 
-### Authentication Examples
+### Exemplos de Autenticação
 
-Windows integrated authentication:
+Autenticação integrada do Windows:
 
 ```ini
 MSSQL_SERVER=sql.example.test
@@ -147,35 +147,29 @@ MSSQL_DATABASE=analytics
 MSSQL_TRUSTED_CONNECTION=yes
 ```
 
-No username or password is required in this mode. SQL Server receives the Windows
-identity of the process started by the MCP client. The account running the client
-must therefore have permission to access the target database.
+Neste modo, nenhum usuário ou senha é necessário. O SQL Server recebe a identidade Windows do processo iniciado pelo cliente MCP. A conta que executa o cliente deve, portanto, ter permissão para acessar o banco de dados alvo.
 
-SQL authentication:
+Autenticação SQL:
 
 ```ini
 MSSQL_TRUSTED_CONNECTION=no
 MSSQL_USERNAME=mcp_reader
-MSSQL_PASSWORD=replace-with-a-secret
+MSSQL_PASSWORD=substitua-pela-senha-real
 ```
 
-Complete ODBC connection string:
+String de conexão ODBC completa:
 
 ```ini
-MSSQL_CONNECTION_STRING=Driver={ODBC Driver 18 for SQL Server};Server=tcp:sql.example.test,1433;Database=analytics;UID=mcp_reader;PWD=replace-with-a-secret;Encrypt=yes;TrustServerCertificate=no;ApplicationIntent=ReadOnly;
+MSSQL_CONNECTION_STRING=Driver={ODBC Driver 18 for SQL Server};Server=tcp:sql.example.test,1433;Database=analytics;UID=mcp_reader;PWD=substitua-pela-senha-real;Encrypt=yes;TrustServerCertificate=no;ApplicationIntent=ReadOnly;
 ```
 
-`MSSQL_CONNECTION_STRING` takes precedence over `MSSQL_DRIVER`, `MSSQL_SERVER`,
-`MSSQL_DATABASE`, and authentication/TLS fields. Resource limits, timeouts, the
-server name, and logging settings remain independent.
+`MSSQL_CONNECTION_STRING` tem precedência sobre `MSSQL_DRIVER`, `MSSQL_SERVER`, `MSSQL_DATABASE` e campos de autenticação/TLS. Limites de recursos, timeouts, o nome do servidor e configurações de logging permanecem independentes.
 
-Do not place real credentials in configuration committed to source control. For a
-local MCP client, keep its configuration private or reference secrets through the
-client's supported secret mechanism.
+Não coloque credenciais reais em configurações versionadas no controle de código-fonte. Para um cliente MCP local, mantenha sua configuração privada ou referencie segredos através do mecanismo de segredos suportado pelo cliente.
 
-### Enabling Controlled Changes
+### Habilitando Alterações Controladas
 
-Keep the default read-only mode unless changes are required. A conservative DML-only configuration is:
+Mantenha o modo somente leitura padrão a menos que alterações sejam necessárias. Uma configuração conservadora somente DML é:
 
 ```ini
 MSSQL_APPLICATION_INTENT=ReadWrite
@@ -185,54 +179,47 @@ MSSQL_MAX_AFFECTED_ROWS=25
 MSSQL_CHANGE_TOKEN_TTL_SECONDS=300
 ```
 
-Supported allowlist values are `INSERT`, `UPDATE`, `DELETE`, `CREATE_TABLE`,
-`ALTER_TABLE`, `DROP_TABLE`, `TRUNCATE_TABLE`, `CREATE_INDEX`, `ALTER_INDEX`,
-and `DROP_INDEX`. Add destructive DDL only after reviewing permissions, backups,
-and client confirmation behavior.
+Os valores suportados na lista de operações são `INSERT`, `UPDATE`, `DELETE`, `CREATE_TABLE`, `ALTER_TABLE`, `DROP_TABLE`, `TRUNCATE_TABLE`, `CREATE_INDEX`, `ALTER_INDEX` e `DROP_INDEX`. Adicione DDL destrutivo apenas após revisar permissões, backups e o comportamento de confirmação do cliente.
 
-For a complete ODBC string, use `ApplicationIntent=ReadWrite` or omit that key.
-Also set the separate `MSSQL_APPLICATION_INTENT=ReadWrite` safety flag so startup
-validation can confirm that write mode was intentional.
+Para uma string ODBC completa, use `ApplicationIntent=ReadWrite` ou omita essa chave. Defina também a flag de segurança `MSSQL_APPLICATION_INTENT=ReadWrite` separadamente para que a validação de inicialização possa confirmar que o modo de escrita foi intencional.
 
-The template [vscode.write-enabled.mcp.json](examples/clients/vscode.write-enabled.mcp.json)
-uses Windows Authentication against a sandbox database. SQL Authentication and a
-full connection string work the same way.
+O template [vscode.write-enabled.mcp.json](examples/clients/vscode.write-enabled.mcp.json) usa Autenticação do Windows contra um banco de dados sandbox. Autenticação SQL e uma string de conexão completa funcionam da mesma forma.
 
-## Running the Server
+## Executando o Servidor
 
-After installation:
+Após a instalação:
 
 ```bash
 mssql-mcp
 ```
 
-Equivalent module invocation:
+Invocação equivalente por módulo:
 
 ```bash
 python -m mssql_mcp
 ```
 
-The process uses `stdio`; it normally appears idle while waiting for an MCP client. Application logs are written to stderr so they do not corrupt the protocol stream.
+O processo usa `stdio`; normalmente aparece ocioso enquanto aguarda um cliente MCP. Os logs da aplicação são gravados em stderr para não corromper o fluxo do protocolo.
 
-### Connection Check
+### Verificação de Conexão
 
 ```bash
 python scripts/check_connection.py
 ```
 
-The server itself does not fail startup when SQL Server is unavailable. Use the `health_check` tool or the script above for diagnosis.
+O próprio servidor não falha na inicialização quando o SQL Server está indisponível. Use a ferramenta `health_check` ou o script acima para diagnóstico.
 
-## MCP Client Configuration
+## Configuração do Cliente MCP
 
-Templates are available under [examples/clients](examples/clients). Replace the placeholder interpreter path with the Python executable where `mssql-mcp` is installed.
+Templates estão disponíveis em [examples/clients](examples/clients). Substitua o caminho do interpretador de espaço reservado pelo executável Python onde o `mssql-mcp` está instalado.
 
-Example:
+Exemplo:
 
 ```json
 {
   "mcpServers": {
     "mssql": {
-      "command": "C:\\path\\to\\mssql-mcp\\.venv\\Scripts\\python.exe",
+      "command": "C:\\caminho\\para\\mssql-mcp\\.venv\\Scripts\\python.exe",
       "args": ["-m", "mssql_mcp"],
       "env": {
         "MSSQL_SERVER": "sql.example.test",
@@ -244,21 +231,21 @@ Example:
 }
 ```
 
-SQL authentication can be configured per MCP server:
+A autenticação SQL pode ser configurada por servidor MCP:
 
 ```json
 {
   "servers": {
     "mssql-explorer": {
       "type": "stdio",
-      "command": "C:\\path\\to\\.venv\\Scripts\\python.exe",
+      "command": "C:\\caminho\\para\\.venv\\Scripts\\python.exe",
       "args": ["-m", "mssql_mcp"],
       "env": {
         "MSSQL_SERVER": "tcp:sql.example.test,1433",
         "MSSQL_DATABASE": "analytics",
         "MSSQL_TRUSTED_CONNECTION": "no",
         "MSSQL_USERNAME": "mcp_reader",
-        "MSSQL_PASSWORD": "replace-with-a-secret",
+        "MSSQL_PASSWORD": "substitua-pela-senha-real",
         "MSSQL_ENCRYPT": "yes",
         "MSSQL_TRUST_CERTIFICATE": "no"
       }
@@ -267,34 +254,27 @@ SQL authentication can be configured per MCP server:
 }
 ```
 
-Alternatively, set only `MSSQL_CONNECTION_STRING` inside `env` when the database
-provider requires additional ODBC options. The complete string may use SQL
-credentials (`UID` and `PWD`) or Windows authentication (`Trusted_Connection=yes`).
-When `MSSQL_CONNECTION_STRING` is present, it is used as-is and takes precedence
-over the individual connection fields.
+Alternativamente, defina apenas `MSSQL_CONNECTION_STRING` dentro de `env` quando o provedor de banco de dados exigir opções ODBC adicionais. A string completa pode usar credenciais SQL (`UID` e `PWD`) ou autenticação do Windows (`Trusted_Connection=yes`). Quando `MSSQL_CONNECTION_STRING` está presente, ela é usada diretamente e tem precedência sobre os campos de conexão individuais.
 
-Each server entry can point to a different database by supplying a different
-environment block. Ready-to-use templates are provided in
-`examples/clients/vscode.windows-auth.mcp.json` and
-`examples/clients/vscode.connection-string.mcp.json`.
+Cada entrada de servidor pode apontar para um banco de dados diferente fornecendo um bloco de ambiente diferente. Templates prontos para uso estão disponíveis em `examples/clients/vscode.windows-auth.mcp.json` e `examples/clients/vscode.connection-string.mcp.json`.
 
-Restart the MCP client after changing its configuration.
+Reinicie o cliente MCP após alterar sua configuração.
 
-## Execution Flow
+## Fluxo de Execução
 
-1. The MCP client starts `python -m mssql_mcp`.
-2. `Settings.from_env()` validates runtime configuration.
-3. Logging is configured on stderr and optionally in a rotating file.
-4. `create_server()` always registers the 15 read-only tools and conditionally registers two change tools.
-5. Read tools validate arguments and execute parameterized metadata SQL or one bounded `SELECT`.
-6. A state-changing request must first pass `prepare_sql_change`, producing an expiring token bound to the exact SQL fingerprint.
-7. `execute_sql_change` requires unchanged SQL, the one-time token, and `confirm=true`.
-8. `DatabaseManager` executes changes in an explicit transaction and commits only after row-limit checks; failures roll back.
-9. Every tool returns the stable response envelope.
+1. O cliente MCP inicia `python -m mssql_mcp`.
+2. `Settings.from_env()` valida a configuração de runtime.
+3. O logging é configurado em stderr e opcionalmente em um arquivo com rotação.
+4. `create_server()` sempre registra as 15 ferramentas somente leitura e condicionalmente registra duas ferramentas de alteração.
+5. As ferramentas de leitura validam os argumentos e executam SQL de metadados parametrizado ou um `SELECT` delimitado.
+6. Uma requisição de modificação de estado deve primeiro passar por `prepare_sql_change`, produzindo um token com expiração vinculado ao fingerprint exato do SQL.
+7. `execute_sql_change` requer o SQL inalterado, o token de uso único e `confirm=true`.
+8. `DatabaseManager` executa as alterações em uma transação explícita e confirma apenas após as verificações de limite de linhas; falhas fazem rollback.
+9. Toda ferramenta retorna o envelope de resposta padrão.
 
-## Response Format
+## Formato de Resposta
 
-Tools return a consistent object:
+As ferramentas retornam um objeto consistente:
 
 ```json
 {
@@ -311,58 +291,58 @@ Tools return a consistent object:
 }
 ```
 
-`metadata` varies by tool. Existing top-level fields remain stable across success and failure responses.
+`metadata` varia por ferramenta. Os campos de nível superior existentes permanecem estáveis nas respostas de sucesso e falha.
 
-## Available Tools
+## Ferramentas Disponíveis
 
-| Tool | Purpose |
+| Ferramenta | Finalidade |
 | --- | --- |
-| `health_check` | Verify connectivity and report database, read intent, and latency. |
-| `get_database_overview` | Return server version, edition, database settings, and object counts. |
-| `list_databases` | List visible databases with pagination. |
-| `list_schemas` | List user schemas, owners, and object counts. |
-| `list_tables` | List tables with optional schema filter and approximate row counts. |
-| `list_views` | List views with optional schema filter and pagination. |
-| `list_procedures` | List stored procedures and parameter counts. |
-| `list_functions` | List scalar and table-valued functions. |
-| `describe_table` | Return columns, primary key, foreign keys, and indexes. |
-| `get_procedure_code` | Return procedure source and parameters. |
-| `get_object_definition` | Return source for a procedure, view, or function. |
-| `find_table_usage` | Find programmable objects that reference a table. |
-| `find_procedure_dependencies` | Find tables, views, procedures, and functions referenced by a procedure. |
-| `search_objects` | Search object names and SQL definitions without returning full source text. |
-| `execute_select` | Execute one validated read-oriented `SELECT` or `SELECT` CTE with bounded output. |
-| `prepare_sql_change` | Opt-in: validate one allowlisted change and issue a short-lived token without modifying SQL Server. |
-| `execute_sql_change` | Opt-in: execute the exact prepared statement transactionally after explicit confirmation. |
+| `health_check` | Verifica a conectividade e reporta banco de dados, intenção de leitura e latência. |
+| `get_database_overview` | Retorna versão do servidor, edição, configurações do banco de dados e contagens de objetos. |
+| `list_databases` | Lista bancos de dados visíveis com paginação. |
+| `list_schemas` | Lista schemas de usuário, proprietários e contagens de objetos. |
+| `list_tables` | Lista tabelas com filtro de schema opcional e contagens aproximadas de linhas. |
+| `list_views` | Lista views com filtro de schema opcional e paginação. |
+| `list_procedures` | Lista stored procedures e contagens de parâmetros. |
+| `list_functions` | Lista funções escalares e com retorno de tabela. |
+| `describe_table` | Retorna colunas, chave primária, chaves estrangeiras e índices. |
+| `get_procedure_code` | Retorna código-fonte e parâmetros de uma procedure. |
+| `get_object_definition` | Retorna código-fonte de uma procedure, view ou função. |
+| `find_table_usage` | Encontra objetos programáveis que referenciam uma tabela. |
+| `find_procedure_dependencies` | Encontra tabelas, views, procedures e funções referenciadas por uma procedure. |
+| `search_objects` | Pesquisa nomes de objetos e definições SQL sem retornar o texto-fonte completo. |
+| `execute_select` | Executa um `SELECT` ou CTE `SELECT` validado com saída delimitada. |
+| `prepare_sql_change` | Opt-in: valida uma alteração na lista de permitidos e emite um token de curta duração sem modificar o SQL Server. |
+| `execute_sql_change` | Opt-in: executa o statement preparado exato de forma transacional após confirmação explícita. |
 
-Catalog tools accept `limit` and `offset`; `list_tables`, `list_views`, `list_procedures`, and `list_functions` also accept an optional `schema`.
+As ferramentas de catálogo aceitam `limit` e `offset`; `list_tables`, `list_views`, `list_procedures` e `list_functions` também aceitam um `schema` opcional.
 
-`get_object_definition` accepts an optional `object_type`: `procedure`, `view`, or `function`.
+`get_object_definition` aceita um `object_type` opcional: `procedure`, `view` ou `function`.
 
-## Usage Examples
+## Exemplos de Uso
 
-### Explore an Unknown Database
+### Explorar um Banco de Dados Desconhecido
 
-1. Call `health_check`.
-2. Call `get_database_overview`.
-3. Call `list_schemas`.
-4. Call `list_tables` for a relevant schema.
-5. Call `describe_table` for candidate tables.
+1. Chame `health_check`.
+2. Chame `get_database_overview`.
+3. Chame `list_schemas`.
+4. Chame `list_tables` para um schema relevante.
+5. Chame `describe_table` para as tabelas candidatas.
 
-### Reverse Engineer a Procedure
+### Fazer Engenharia Reversa de uma Procedure
 
-1. Call `search_objects` with a business term.
-2. Call `get_procedure_code` or `get_object_definition`.
-3. Call `find_procedure_dependencies`.
-4. Describe the referenced tables.
+1. Chame `search_objects` com um termo de negócio.
+2. Chame `get_procedure_code` ou `get_object_definition`.
+3. Chame `find_procedure_dependencies`.
+4. Descreva as tabelas referenciadas.
 
-### Trace Table Usage
+### Rastrear o Uso de uma Tabela
 
-1. Call `describe_table` with a schema-qualified name.
-2. Call `find_table_usage`.
-3. Retrieve definitions for the returned procedures, views, or functions.
+1. Chame `describe_table` com um nome qualificado por schema.
+2. Chame `find_table_usage`.
+3. Recupere as definições das procedures, views ou funções retornadas.
 
-### Validate a Data Hypothesis
+### Validar uma Hipótese sobre os Dados
 
 ```sql
 SELECT TOP 20
@@ -373,12 +353,12 @@ GROUP BY CustomerId
 ORDER BY OrderCount DESC;
 ```
 
-Use `execute_select` only after metadata tools establish the relevant schema and columns.
+Use `execute_select` apenas após as ferramentas de metadados estabelecerem o schema e as colunas relevantes.
 
-### Apply a Controlled Change
+### Aplicar uma Alteração Controlada
 
-1. Confirm the target database with `health_check` and inspect the target table.
-2. Call `prepare_sql_change` with one exact statement, for example:
+1. Confirme o banco de dados alvo com `health_check` e inspecione a tabela alvo.
+2. Chame `prepare_sql_change` com um statement exato, por exemplo:
 
 ```sql
 UPDATE sales.Orders
@@ -386,40 +366,31 @@ SET ReviewStatus = 'Pending'
 WHERE OrderId = 12345;
 ```
 
-3. Review the SQL, operation, fingerprint, target database, and affected-row limit.
-4. After explicit user approval, call `execute_sql_change` with the unchanged SQL, returned token, and `confirm=true`.
-5. Verify `committed`, `affected_rows`, and the fingerprint in the response.
+3. Revise o SQL, a operação, o fingerprint, o banco de dados alvo e o limite de linhas afetadas.
+4. Após aprovação explícita do usuário, chame `execute_sql_change` com o SQL inalterado, o token retornado e `confirm=true`.
+5. Verifique `committed`, `affected_rows` e o fingerprint na resposta.
 
-Tokens expire, are one-time, and become invalid if any SQL byte changes. `UPDATE`
-and `DELETE` without a top-level `WHERE` are rejected. DML is rolled back when SQL
-Server does not provide a row count or the configured limit is exceeded.
+Os tokens expiram, são de uso único e se tornam inválidos se qualquer byte do SQL for alterado. `UPDATE` e `DELETE` sem uma cláusula `WHERE` de nível superior são rejeitados. O DML é revertido quando o SQL Server não fornece uma contagem de linhas ou o limite configurado é excedido.
 
-## Security
+## Segurança
 
-Read-only execution and state-changing execution use separate validators. Write tools
-are not registered unless explicitly enabled. When enabled, they use an operation
-allowlist, exact-query confirmation token, expiration, one-time consumption,
-`ApplicationIntent=ReadWrite`, explicit transactions, `XACT_ABORT`, and rollback on
-errors or DML row-limit violations.
+Execução somente leitura e execução com modificação de estado usam validadores separados. As ferramentas de escrita não são registradas a menos que sejam explicitamente habilitadas. Quando habilitadas, usam lista de operações permitidas, token de confirmação de consulta exato, expiração, consumo único, `ApplicationIntent=ReadWrite`, transações explícitas, `XACT_ABORT` e rollback em erros ou violações de limite de linhas DML.
 
-These controls cannot prove user intent or replace database authorization. Use:
+Esses controles não podem provar a intenção do usuário nem substituir a autorização do banco de dados. Use:
 
-- a dedicated identity with only required table/schema permissions;
-- a separate MCP server entry for writes;
-- a low `MSSQL_MAX_AFFECTED_ROWS` value;
-- verified client confirmation UI for destructive tools;
-- SQL Server Audit, monitoring, backups, and tested recovery procedures;
-- sandbox or non-production validation before enabling DDL;
-- no `sysadmin`, `db_owner`, broad `CONTROL`, or personal admin identity.
+- uma identidade dedicada com apenas as permissões de tabela/schema necessárias;
+- uma entrada de servidor MCP separada para escritas;
+- um valor baixo para `MSSQL_MAX_AFFECTED_ROWS`;
+- UI de confirmação verificada no cliente para ferramentas destrutivas;
+- SQL Server Audit, monitoramento, backups e procedimentos de recuperação testados;
+- validação em sandbox ou ambiente não produtivo antes de habilitar DDL;
+- nenhuma identidade `sysadmin`, `db_owner`, `CONTROL` amplo ou identidade administrativa pessoal.
 
-The validator rejects multiple statements, full-table `UPDATE`/`DELETE` without a
-`WHERE`, multi-target DDL, explicit cross-database writes, database/security/server
-DDL, `MERGE`, `EXEC`, permission changes, transaction control, external rowsets,
-backup/restore, triggers, bulk operations, and administrative commands.
+O validador rejeita múltiplos statements, `UPDATE`/`DELETE` em tabela inteira sem `WHERE`, DDL multi-alvo, escritas explícitas entre bancos de dados, DDL de banco de dados/segurança/servidor, `MERGE`, `EXEC`, alterações de permissão, controle de transação, rowsets externos, backup/restore, triggers, operações em massa e comandos administrativos.
 
-See [docs/security.md](docs/security.md) for the threat model and known limitations.
+Consulte [docs/security.md](docs/security.md) para o modelo de ameaças e limitações conhecidas.
 
-## Testing and Quality
+## Testes e Qualidade
 
 ```bash
 ruff format --check .
@@ -428,7 +399,7 @@ pytest -m "not integration" --cov=mssql_mcp
 pip-audit
 ```
 
-Live integration tests are opt-in:
+Testes de integração ao vivo são opt-in:
 
 ```powershell
 $env:RUN_MSSQL_INTEGRATION_TESTS = "1"
@@ -439,97 +410,97 @@ pytest -m integration
 RUN_MSSQL_INTEGRATION_TESTS=1 pytest -m integration
 ```
 
-CI runs formatting, lint, unit tests, coverage, and dependency auditing. Dependabot monitors Python packages and GitHub Actions.
+O CI executa formatação, lint, testes unitários, cobertura e auditoria de dependências. O Dependabot monitora pacotes Python e GitHub Actions.
 
-## Project Structure
+## Estrutura do Projeto
 
 ```text
 .
-|-- .github/                 # CI, dependency updates, issue and PR templates
-|-- docs/                    # Architecture and security documentation
+|-- .github/                 # CI, atualizações de dependências, templates de issues e PRs
+|-- docs/                    # Documentação de arquitetura e segurança
 |-- examples/
-|   |-- clients/             # MCP client configuration templates
-|   `-- queries.md           # Safe usage examples
+|   |-- clients/             # Templates de configuração de clientes MCP
+|   `-- queries.md           # Exemplos de uso seguro
 |-- scripts/
-|   `-- check_connection.py  # Configuration and connectivity smoke check
+|   `-- check_connection.py  # Verificação de configuração e conectividade
 |-- src/mssql_mcp/
-|   |-- change_control.py    # Expiring one-time approvals for exact SQL fingerprints
-|   |-- config.py            # Environment, authentication, and write safety settings
-|   |-- database.py          # Bounded reads and transactional ODBC changes
-|   |-- logging_config.py    # Stderr, JSON, and rotating-file logging
-|   |-- security.py          # Separate read and state-changing SQL validators
-|   |-- server.py            # FastMCP factory and conditional tool registration
-|   `-- tools/               # Catalog, schema, dependency, query, change, and registry services
-|-- tests/                   # Unit and opt-in integration tests
+|   |-- change_control.py    # Aprovações únicas com expiração para fingerprints SQL exatos
+|   |-- config.py            # Configurações de ambiente, autenticação e segurança de escrita
+|   |-- database.py          # Leituras delimitadas e alterações ODBC transacionais
+|   |-- logging_config.py    # Logging em stderr, JSON e arquivo com rotação
+|   |-- security.py          # Validadores SQL separados para leitura e modificação de estado
+|   |-- server.py            # Factory FastMCP e registro condicional de ferramentas
+|   `-- tools/               # Serviços de catálogo, schema, dependências, consulta, alteração e registro
+|-- tests/                   # Testes unitários e de integração opt-in
 |-- .env.example
 |-- pyproject.toml
 `-- README.md
 ```
 
-## Limitations
+## Limitações
 
-- Dependency metadata can be incomplete for dynamic SQL, encrypted modules, unresolved cross-database references, or objects created with deferred name resolution.
-- `ApplicationIntent=ReadOnly` is a routing hint, not an authorization control.
-- Returned rows are capped, but SQL Server may still perform expensive work before producing them; timeout and database workload governance remain important.
-- Search depends on `sys.sql_modules` visibility and does not return encrypted definitions.
-- Table row counts are derived from partitions and are approximate metadata, not transactional `COUNT(*)` results.
-- State-changing validation is conservative lexical analysis, not a complete T-SQL parser or proof of user intent.
-- Triggers, cascades, synonyms, and server-side features can create effects beyond the visible statement; permissions and auditing remain mandatory.
-- Explicit three-part write references are rejected, but indirect cross-database behavior must still be prevented through SQL Server permissions and design.
-- The project does not currently expose HTTP transports or multi-database switching within one server process.
+- Os metadados de dependência podem estar incompletos para SQL dinâmico, módulos criptografados, referências entre bancos de dados não resolvidas ou objetos criados com resolução de nomes diferida.
+- `ApplicationIntent=ReadOnly` é uma dica de roteamento, não um controle de autorização.
+- As linhas retornadas são limitadas, mas o SQL Server pode ainda realizar trabalho custoso antes de produzi-las; timeout e governança de carga de trabalho do banco de dados continuam sendo importantes.
+- A pesquisa depende da visibilidade de `sys.sql_modules` e não retorna definições criptografadas.
+- As contagens de linhas de tabelas são derivadas de partições e são metadados aproximados, não resultados transacionais de `COUNT(*)`.
+- A validação de modificação de estado é uma análise léxica conservadora, não um parser T-SQL completo nem uma prova de intenção do usuário.
+- Triggers, cascatas, sinônimos e recursos do lado do servidor podem criar efeitos além do statement visível; permissões e auditoria continuam sendo obrigatórias.
+- Referências explícitas de escrita com três partes são rejeitadas, mas o comportamento indireto entre bancos de dados ainda deve ser prevenido pelas permissões e pelo design do SQL Server.
+- O projeto atualmente não expõe transportes HTTP ou troca de banco de dados dentro de um único processo de servidor.
 
-## Troubleshooting
+## Solução de Problemas
 
-### ODBC driver not found
+### Driver ODBC não encontrado
 
-List installed drivers:
+Liste os drivers instalados:
 
 ```python
 import pyodbc
 print(pyodbc.drivers())
 ```
 
-Set `MSSQL_DRIVER` to an installed name. Install Microsoft ODBC Driver 18 when absent.
+Defina `MSSQL_DRIVER` com um nome instalado. Instale o Microsoft ODBC Driver 18 quando ausente.
 
-### Certificate validation failure
+### Falha na validação do certificado
 
-Use a certificate trusted by the MCP host. `MSSQL_TRUST_CERTIFICATE=yes` is available for controlled development environments but weakens TLS identity validation.
+Use um certificado confiável pelo host MCP. `MSSQL_TRUST_CERTIFICATE=yes` está disponível para ambientes de desenvolvimento controlados, mas enfraquece a validação de identidade TLS.
 
-### Login failed
+### Falha de login
 
-Confirm the selected authentication mode. With trusted authentication, the MCP client process runs as the desktop application user or service identity, which may differ from an interactive shell.
+Confirme o modo de autenticação selecionado. Com autenticação confiável, o processo do cliente MCP executa como o usuário da aplicação desktop ou identidade de serviço, que pode diferir de um shell interativo.
 
-### Metadata is missing
+### Metadados ausentes
 
-SQL Server metadata visibility follows permissions. Grant only the required `VIEW DEFINITION` and `SELECT` permissions; do not use broad administrative roles to solve discovery issues.
+A visibilidade de metadados do SQL Server segue as permissões. Conceda apenas as permissões `VIEW DEFINITION` e `SELECT` necessárias; não use papéis administrativos amplos para resolver problemas de descoberta.
 
-### Query timed out
+### Consulta expirou
 
-Reduce query scope, add selective predicates, verify indexes, or adjust `MSSQL_TIMEOUT_QUERY` after assessing workload impact.
+Reduza o escopo da consulta, adicione predicados seletivos, verifique índices ou ajuste `MSSQL_TIMEOUT_QUERY` após avaliar o impacto na carga de trabalho.
 
-### Tool response is truncated
+### Resposta da ferramenta truncada
 
-Use pagination for catalog tools. For `execute_select`, add a selective predicate or deterministic `TOP` clause. `MSSQL_MAX_ROWS` is an output safety limit.
+Use paginação para ferramentas de catálogo. Para `execute_select`, adicione um predicado seletivo ou uma cláusula `TOP` determinística. `MSSQL_MAX_ROWS` é um limite de segurança de saída.
 
-### MCP client cannot start the server
+### Cliente MCP não consegue iniciar o servidor
 
-Use an absolute Python interpreter path in the client config and verify that interpreter can run:
+Use um caminho absoluto para o interpretador Python na configuração do cliente e verifique se esse interpretador consegue executar:
 
 ```bash
-<python-path> -m mssql_mcp
+<caminho-python> -m mssql_mcp
 ```
 
-Logs must remain on stderr. Do not add `print()` output to server startup.
+Os logs devem permanecer em stderr. Não adicione saída `print()` à inicialização do servidor.
 
 ## Roadmap
 
-- Add optional Streamable HTTP transport with authentication guidance.
-- Add database allowlists for controlled multi-database deployments.
-- Add richer cross-database dependency reporting.
-- Add query cost preflight using estimated execution plans where permissions allow.
-- Publish signed releases and a software bill of materials.
-- Select and add an explicit repository license.
+- Adicionar transporte Streamable HTTP opcional com orientações de autenticação.
+- Adicionar listas de bancos de dados permitidos para implantações multi-banco controladas.
+- Adicionar relatórios de dependências entre bancos de dados mais ricos.
+- Adicionar preflight de custo de consulta usando planos de execução estimados onde as permissões permitirem.
+- Publicar releases assinados e um software bill of materials.
+- Selecionar e adicionar uma licença explícita ao repositório.
 
-## License
+## Licença
 
-No license has been selected. Until the repository owner adds one, the source remains under default copyright protection and is not automatically open source.
+Nenhuma licença foi selecionada. Até que o proprietário do repositório adicione uma, o código-fonte permanece sob proteção de direitos autorais padrão e não é automaticamente de código aberto.
