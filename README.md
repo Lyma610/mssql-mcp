@@ -525,6 +525,7 @@ Liste os drivers instalados:
 
 ```python
 import pyodbc
+
 print(pyodbc.drivers())
 ```
 
