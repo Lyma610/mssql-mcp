@@ -15,6 +15,8 @@ python -m pip install -e ".[dev]"
 ruff format --check .
 ruff check .
 pytest -m "not integration" --cov=mssql_mcp
+python -m build
+python -m twine check --strict dist/*
 pip-audit
 ```
 

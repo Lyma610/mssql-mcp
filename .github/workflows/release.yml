@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pypi-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and validate distributions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Validate release version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          release_tag = os.environ["RELEASE_TAG"]
+          release_version = release_tag[1:] if release_tag.startswith("v") else release_tag
+          with Path("pyproject.toml").open("rb") as pyproject_file:
+              package_version = tomllib.load(pyproject_file)["project"]["version"]
+
+          if release_version != package_version:
+              raise SystemExit(
+                  "Release version mismatch: "
+                  f"GitHub Release '{release_tag}' does not match "
+                  f"pyproject.toml version '{package_version}'."
+              )
+          print(f"Release version validated: {package_version}")
+          PY
+      - name: Install ODBC build dependencies
+        run: sudo apt-get update && sudo apt-get install --yes unixodbc-dev
+      - name: Install project and release tooling
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+      - name: Check formatting
+        run: ruff format --check .
+      - name: Lint
+        run: ruff check .
+      - name: Test
+        run: pytest -m "not integration" --cov=mssql_mcp --cov-report=term-missing
+      - name: Build wheel and source distribution
+        run: python -m build
+      - name: Verify expected artifacts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          wheels = list(Path("dist").glob("*.whl"))
+          source_distributions = list(Path("dist").glob("*.tar.gz"))
+          if len(wheels) != 1 or len(source_distributions) != 1:
+              raise SystemExit(
+                  "Expected exactly one wheel and one source distribution; "
+                  f"found {len(wheels)} wheel(s) and "
+                  f"{len(source_distributions)} source distribution(s)."
+              )
+          print(f"Wheel: {wheels[0].name}")
+          print(f"Source distribution: {source_distributions[0].name}")
+          PY
+      - name: Validate package metadata and README
+        run: python -m twine check --strict dist/*
+      - name: Smoke test built wheel
+        shell: bash
+        run: |
+          wheel="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          python -m venv .wheel-smoke
+          .wheel-smoke/bin/python -m pip install --upgrade pip
+          .wheel-smoke/bin/python -m pip install "$wheel"
+          .wheel-smoke/bin/python -m pip check
+          .wheel-smoke/bin/python - <<'PY'
+          from importlib.metadata import distribution
+
+          import mssql_mcp
+          import mssql_mcp.server
+
+          installed = distribution("lyma-mssql-mcp")
+          scripts = {
+              entry_point.name: entry_point.value
+              for entry_point in installed.entry_points
+              if entry_point.group == "console_scripts"
+          }
+          if scripts.get("mssql-mcp") != "mssql_mcp.server:main":
+              raise SystemExit("The mssql-mcp console entrypoint is missing or invalid.")
+          if mssql_mcp.__version__ != installed.version:
+              raise SystemExit(
+                  "Installed package version does not match mssql_mcp.__version__."
+              )
+          print(
+              f"Wheel smoke test passed: {installed.metadata['Name']} "
+              f"{installed.version}"
+          )
+          PY
+          test -x .wheel-smoke/bin/mssql-mcp
+      - name: Upload validated distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-pypi:
+    name: Publish distributions to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/lyma-mssql-mcp
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download validated distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          skip-existing: false

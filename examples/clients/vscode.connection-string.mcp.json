@@ -2,8 +2,8 @@
   "servers": {
     "mssql-explorer": {
       "type": "stdio",
-      "command": "C:\\path\\to\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "mssql_mcp"],
+      "command": "uvx",
+      "args": ["--from", "lyma-mssql-mcp", "mssql-mcp"],
       "env": {
         "MSSQL_CONNECTION_STRING": "Driver={ODBC Driver 18 for SQL Server};Server=tcp:sql.example.test,1433;Database=analytics;UID=mcp_reader;PWD=replace-with-a-secret;Encrypt=yes;TrustServerCertificate=no;ApplicationIntent=ReadOnly;",
         "MSSQL_TIMEOUT_CONNECTION": "10",

@@ -2,8 +2,8 @@
   "mcpServers": {
     "mssql": {
       "type": "stdio",
-      "command": "C:\\path\\to\\mssql-mcp\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "mssql_mcp"],
+      "command": "uvx",
+      "args": ["--from", "lyma-mssql-mcp", "mssql-mcp"],
       "env": {
         "MSSQL_SERVER": "sql.example.test",
         "MSSQL_DATABASE": "analytics",

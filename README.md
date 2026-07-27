@@ -53,7 +53,7 @@ flowchart LR
     DB --> SQLServer[(Microsoft SQL Server)]
 ```
 
-A factory do servidor cria a configuração, um adaptador de banco de dados ODBC, serviços de ferramentas e o registro MCP. Os serviços de ferramentas dependem de um protocolo de banco de dados mínimo, então os testes utilizam fakes determinísticos em vez de um banco real. Consulte [docs/architecture.md](docs/architecture.md) para responsabilidades de componentes e fluxo de execução.
+A factory do servidor cria a configuração, um adaptador de banco de dados ODBC, serviços de ferramentas e o registro MCP. Os serviços de ferramentas dependem de um protocolo de banco de dados mínimo, então os testes utilizam fakes determinísticos em vez de um banco real. Consulte a [documentação de arquitetura](https://github.com/Lyma610/mssql-mcp/blob/main/docs/architecture.md) para responsabilidades de componentes e fluxo de execução.
 
 ## Requisitos
 
@@ -64,10 +64,44 @@ A factory do servidor cria a configuração, um adaptador de banco de dados ODBC
 
 O projeto é desenvolvido no Windows, mas o pacote Python é portável para plataformas suportadas pelo `pyodbc` e pelo driver Microsoft ODBC.
 
-## Instalação
+## Usando o MCP
+
+> O pacote está preparado para publicação, mas ainda não foi publicado no PyPI. A configuração
+> abaixo será válida após a primeira publicação de `lyma-mssql-mcp`.
+
+Com o `uv` instalado, a forma recomendada será executar o MCP em um ambiente isolado gerenciado
+pelo `uvx`:
+
+```json
+{
+  "mcpServers": {
+    "mssql": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "lyma-mssql-mcp",
+        "mssql-mcp"
+      ],
+      "env": {
+        "MSSQL_SERVER": "localhost",
+        "MSSQL_DATABASE": "MyDatabase",
+        "MSSQL_AUTH": "windows"
+      }
+    }
+  }
+}
+```
+
+O `uvx` instalará a distribuição `lyma-mssql-mcp` e executará o comando `mssql-mcp`. O módulo
+Python interno permanece `mssql_mcp`.
+
+## Desenvolvimento
+
+Para trabalhar no código-fonte:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Lyma610/mssql-mcp.git
 cd mssql-mcp
 python -m venv .venv
 ```
@@ -84,13 +118,7 @@ Ative o ambiente:
 source .venv/bin/activate
 ```
 
-Instale o pacote:
-
-```bash
-python -m pip install -e .
-```
-
-Para ferramentas de desenvolvimento:
+Instale o projeto e as ferramentas de desenvolvimento:
 
 ```bash
 python -m pip install -e ".[dev]"
@@ -109,8 +137,9 @@ Configuração mínima recomendada para um cliente MCP:
 {
   "mcpServers": {
     "mssql": {
-      "command": "python",
-      "args": ["-m", "mssql_mcp"],
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "lyma-mssql-mcp", "mssql-mcp"],
       "env": {
         "MSSQL_SERVER": "localhost",
         "MSSQL_DATABASE": "MyDatabase",
@@ -135,8 +164,9 @@ Para autenticação SQL, informe também usuário e senha:
 {
   "mcpServers": {
     "mssql": {
-      "command": "python",
-      "args": ["-m", "mssql_mcp"],
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "lyma-mssql-mcp", "mssql-mcp"],
       "env": {
         "MSSQL_SERVER": "localhost",
         "MSSQL_DATABASE": "MyDatabase",
@@ -161,7 +191,8 @@ use o mecanismo de segredos oferecido pelo cliente.
 
 ### Arquivo `.env`
 
-Como alternativa ao bloco `env` do cliente, copie o exemplo local:
+Durante o desenvolvimento a partir do repositório, como alternativa ao bloco `env` do cliente,
+copie o exemplo local:
 
 ```powershell
 Copy-Item .env.example .env
@@ -259,7 +290,9 @@ Mantenha também a variável de intenção acima para que a inicialização conf
 
 ## Executando o Servidor
 
-Após a instalação:
+O cliente MCP iniciará o entrypoint `mssql-mcp` automaticamente por meio do `uvx`. Em um checkout
+de desenvolvimento com o pacote instalado em modo editável, ele também pode ser iniciado
+diretamente:
 
 ```bash
 mssql-mcp
@@ -273,17 +306,21 @@ python -m mssql_mcp
 
 O processo usa `stdio`; normalmente aparece ocioso enquanto aguarda um cliente MCP. Os logs da aplicação são gravados em stderr para não corromper o fluxo do protocolo.
 
-### Verificação de Conexão
+### Verificação de Conexão no desenvolvimento
 
 ```bash
 python scripts/check_connection.py
 ```
 
-O próprio servidor não falha na inicialização quando o SQL Server está indisponível. Use a ferramenta `health_check` ou o script acima para diagnóstico.
+O próprio servidor não falha na inicialização quando o SQL Server está indisponível. Use a
+ferramenta `health_check`; o script acima é uma alternativa disponível no checkout do
+repositório.
 
 ## Configuração do Cliente MCP
 
-Templates estão disponíveis em [examples/clients](examples/clients). Substitua o caminho do interpretador de espaço reservado pelo executável Python onde o `mssql-mcp` está instalado.
+Templates estão disponíveis no diretório
+[examples/clients](https://github.com/Lyma610/mssql-mcp/tree/main/examples/clients).
+Eles usarão `uvx` após a publicação do pacote.
 
 Exemplo:
 
@@ -291,8 +328,9 @@ Exemplo:
 {
   "mcpServers": {
     "mssql": {
-      "command": "python",
-      "args": ["-m", "mssql_mcp"],
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "lyma-mssql-mcp", "mssql-mcp"],
       "env": {
         "MSSQL_SERVER": "localhost",
         "MSSQL_DATABASE": "MyDatabase",
@@ -309,8 +347,9 @@ A autenticação SQL pode ser configurada por servidor MCP:
 {
   "mcpServers": {
     "mssql": {
-      "command": "python",
-      "args": ["-m", "mssql_mcp"],
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "lyma-mssql-mcp", "mssql-mcp"],
       "env": {
         "MSSQL_SERVER": "localhost",
         "MSSQL_DATABASE": "MyDatabase",
@@ -324,13 +363,13 @@ A autenticação SQL pode ser configurada por servidor MCP:
 ```
 
 Cada entrada de servidor pode apontar para um banco de dados diferente fornecendo um bloco de
-ambiente diferente. Templates prontos para uso estão disponíveis em `examples/clients`.
+ambiente diferente.
 
 Reinicie o cliente MCP após alterar sua configuração.
 
 ## Fluxo de Execução
 
-1. O cliente MCP inicia `python -m mssql_mcp`.
+1. O cliente MCP usa `uvx` para instalar a distribuição e iniciar o entrypoint `mssql-mcp`.
 2. `Settings.from_env()` valida a configuração de runtime.
 3. O logging é configurado em stderr e opcionalmente em um arquivo com rotação.
 4. `create_server()` sempre registra as 15 ferramentas somente leitura e condicionalmente registra duas ferramentas de alteração.
@@ -456,7 +495,8 @@ Esses controles não podem provar a intenção do usuário nem substituir a auto
 
 O validador rejeita múltiplos statements, `UPDATE`/`DELETE` em tabela inteira sem `WHERE`, DDL multi-alvo, escritas explícitas entre bancos de dados, DDL de banco de dados/segurança/servidor, `MERGE`, `EXEC`, alterações de permissão, controle de transação, rowsets externos, backup/restore, triggers, operações em massa e comandos administrativos.
 
-Consulte [docs/security.md](docs/security.md) para o modelo de ameaças e limitações conhecidas.
+Consulte o [guia de segurança](https://github.com/Lyma610/mssql-mcp/blob/main/docs/security.md)
+para o modelo de ameaças e limitações conhecidas.
 
 ## Testes e Qualidade
 
@@ -464,6 +504,8 @@ Consulte [docs/security.md](docs/security.md) para o modelo de ameaças e limita
 ruff format --check .
 ruff check .
 pytest -m "not integration" --cov=mssql_mcp
+python -m build
+python -m twine check --strict dist/*
 pip-audit
 ```
 
@@ -478,13 +520,16 @@ pytest -m integration
 RUN_MSSQL_INTEGRATION_TESTS=1 pytest -m integration
 ```
 
-O CI executa formatação, lint, testes unitários, cobertura e auditoria de dependências. O Dependabot monitora pacotes Python e GitHub Actions.
+O CI executa formatação, lint, testes unitários, cobertura, build de wheel/sdist, validação de
+metadata/README e auditoria de dependências. O Dependabot monitora pacotes Python e GitHub
+Actions.
 
 ## Estrutura do Projeto
 
 ```text
 .
-|-- .github/                 # CI, atualizações de dependências, templates de issues e PRs
+|-- .github/
+|   `-- workflows/           # CI para push/PR e Release separada para PyPI
 |-- docs/                    # Documentação de arquitetura e segurança
 |-- examples/
 |   |-- clients/             # Templates de configuração de clientes MCP
@@ -558,13 +603,14 @@ saída.
 
 ### Cliente MCP não consegue iniciar o servidor
 
-Use um caminho absoluto para o interpretador Python na configuração do cliente e verifique se esse interpretador consegue executar:
+Após a publicação, confirme que `uvx` está disponível no `PATH` do cliente MCP:
 
 ```bash
-<caminho-python> -m mssql_mcp
+uvx --version
 ```
 
-Os logs devem permanecer em stderr. Não adicione saída `print()` à inicialização do servidor.
+Em um checkout de desenvolvimento, valide o import com `python -c "import mssql_mcp"`. Os logs
+devem permanecer em stderr. Não adicione saída `print()` à inicialização do servidor.
 
 ## Roadmap
 

@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mssql-mcp"
+name = "lyma-mssql-mcp"
 version = "2.0.0"
 description = "Read-first Model Context Protocol server for Microsoft SQL Server discovery, analysis, and controlled changes."
 readme = "README.md"
@@ -29,14 +29,22 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "build>=1.3,<2",
   "pip-audit>=2.9,<3",
   "pytest>=8.4,<10",
   "pytest-cov>=6.2,<8",
   "ruff>=0.12,<1",
+  "twine>=6.2,<7",
 ]
 
 [project.scripts]
 mssql-mcp = "mssql_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/Lyma610/mssql-mcp"
+Repository = "https://github.com/Lyma610/mssql-mcp"
+Issues = "https://github.com/Lyma610/mssql-mcp/issues"
+Documentation = "https://github.com/Lyma610/mssql-mcp#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mssql_mcp"]
