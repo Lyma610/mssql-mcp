@@ -4,7 +4,12 @@
 
 ### Configuration
 
-`mssql_mcp.config.Settings` reads environment variables, validates authentication, resource bounds, write opt-in, operation allowlists, and `ApplicationIntent`. Loading configuration is explicit; importing the package has no runtime side effects.
+`mssql_mcp.config.Settings` is the single configuration boundary. It loads environment variables,
+applies typed defaults, normalizes boolean and integer values, resolves Windows or SQL
+authentication, validates resource bounds and write opt-in, and builds the ODBC connection string.
+Authentication resolution prioritizes explicit `MSSQL_AUTH`, then the legacy trusted-connection
+flag, then the presence of SQL credentials. Loading configuration is explicit; importing the
+package has no runtime side effects.
 
 ### Logging
 

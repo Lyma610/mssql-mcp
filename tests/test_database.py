@@ -113,6 +113,30 @@ def test_connection_failure_is_classified_separately() -> None:
         manager.execute_query("SELECT 1")
 
 
+def test_connection_failure_does_not_expose_password_or_driver_exception() -> None:
+    password = "do-not-leak-this-password"
+    settings = Settings(
+        server="sql.example.test",
+        database="analytics",
+        auth="sql",
+        trusted_connection=False,
+        username="reader",
+        password=password,
+    )
+
+    def fail_connect(*args: object, **kwargs: object) -> FakeConnection:
+        assert password in str(args[0])
+        raise pyodbc.Error(f"Login failed for PWD={password}")
+
+    manager = DatabaseManager(settings, connect_factory=fail_connect)
+
+    with pytest.raises(DatabaseConnectionError) as captured:
+        manager.execute_query("SELECT 1")
+
+    assert password not in str(captured.value)
+    assert captured.value.__cause__ is None
+
+
 def test_query_failure_is_not_reported_as_connection_failure() -> None:
     cursor = FakeCursor([], execute_error=pyodbc.Error("bad query"))
     connection = FakeConnection(cursor)

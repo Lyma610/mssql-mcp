@@ -7,10 +7,7 @@
       "env": {
         "MSSQL_SERVER": "sql.example.test",
         "MSSQL_DATABASE": "analytics",
-        "MSSQL_TRUSTED_CONNECTION": "yes",
-        "MSSQL_ENCRYPT": "yes",
-        "MSSQL_TRUST_CERTIFICATE": "no",
-        "MSSQL_APPLICATION_INTENT": "ReadOnly"
+        "MSSQL_AUTH": "windows"
       }
     }
   }

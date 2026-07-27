@@ -1,9 +1,10 @@
-"""Environment-based application configuration."""
+"""Centralized environment-based application configuration."""
 
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -11,6 +12,13 @@ from dotenv import load_dotenv
 
 class ConfigurationError(ValueError):
     """Raised when environment configuration is invalid."""
+
+
+class AuthenticationMode(StrEnum):
+    """Supported SQL Server authentication modes."""
+
+    WINDOWS = "windows"
+    SQL = "sql"
 
 
 def _as_bool(name: str, default: bool) -> bool:
@@ -22,7 +30,7 @@ def _as_bool(name: str, default: bool) -> bool:
         return True
     if normalized in {"0", "false", "no", "off"}:
         return False
-    raise ConfigurationError(f"{name} must be a boolean value")
+    raise ConfigurationError(f"{name} must be a boolean value (yes/no, true/false, or 1/0).")
 
 
 def _as_positive_int(name: str, default: int) -> int:
@@ -30,9 +38,9 @@ def _as_positive_int(name: str, default: int) -> int:
     try:
         value = int(raw_value)
     except ValueError as exc:
-        raise ConfigurationError(f"{name} must be an integer") from exc
+        raise ConfigurationError(f"{name} must be a positive integer.") from exc
     if value <= 0:
-        raise ConfigurationError(f"{name} must be greater than zero")
+        raise ConfigurationError(f"{name} must be a positive integer.")
     return value
 
 
@@ -50,23 +58,59 @@ def _odbc_value(value: str) -> str:
     return "{" + value.replace("}", "}}") + "}"
 
 
+def _normalize_auth(value: str | AuthenticationMode) -> AuthenticationMode:
+    try:
+        return AuthenticationMode(value.strip().lower())
+    except ValueError as exc:
+        raise ConfigurationError("MSSQL_AUTH must be either 'windows' or 'sql'.") from exc
+
+
+def _resolve_authentication(
+    *,
+    allow_undetermined: bool,
+) -> AuthenticationMode | None:
+    explicit_auth = os.getenv("MSSQL_AUTH")
+    if explicit_auth is not None:
+        return _normalize_auth(explicit_auth)
+
+    legacy_trusted_connection = os.getenv("MSSQL_TRUSTED_CONNECTION")
+    if legacy_trusted_connection is not None:
+        return (
+            AuthenticationMode.WINDOWS
+            if _as_bool("MSSQL_TRUSTED_CONNECTION", True)
+            else AuthenticationMode.SQL
+        )
+
+    if os.getenv("MSSQL_USERNAME") is not None or os.getenv("MSSQL_PASSWORD") is not None:
+        return AuthenticationMode.SQL
+
+    if allow_undetermined:
+        return None
+
+    raise ConfigurationError(
+        "MSSQL_AUTH is required when authentication cannot be inferred. "
+        "Set MSSQL_AUTH to 'windows' or 'sql'."
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
-    """Runtime settings loaded from environment variables."""
+    """Validated runtime settings loaded from environment variables."""
 
-    raw_connection_string: str | None = None
+    raw_connection_string: str | None = field(default=None, repr=False)
     driver: str = "ODBC Driver 18 for SQL Server"
-    server: str = "localhost"
-    database: str = "master"
+    server: str = ""
+    database: str = ""
+    auth: AuthenticationMode | str | None = None
     trusted_connection: bool = True
     username: str | None = None
-    password: str | None = None
+    password: str | None = field(default=None, repr=False)
     encrypt: bool = True
-    trust_server_certificate: bool = False
+    trust_server_certificate: bool = True
     application_intent: str = "ReadOnly"
     connection_timeout: int = 10
     query_timeout: int = 30
-    max_rows: int = 100
+    max_rows: int = 500
     max_query_length: int = 10_000
     enable_write_tools: bool = False
     allowed_write_operations: frozenset[str] = frozenset({"INSERT", "UPDATE", "DELETE"})
@@ -78,6 +122,19 @@ class Settings:
     log_format: str = "plain"
     log_file: Path | None = None
 
+    def __post_init__(self) -> None:
+        mode = (
+            _normalize_auth(self.auth)
+            if self.auth is not None
+            else (AuthenticationMode.WINDOWS if self.trusted_connection else AuthenticationMode.SQL)
+        )
+        object.__setattr__(self, "auth", mode)
+        object.__setattr__(
+            self,
+            "trusted_connection",
+            mode is AuthenticationMode.WINDOWS,
+        )
+
     @classmethod
     def from_env(cls, env_file: str | Path | None = None) -> Settings:
         configured_path = env_file or os.getenv("MSSQL_MCP_ENV_FILE")
@@ -87,53 +144,72 @@ class Settings:
             load_dotenv(".env", override=False)
 
         defaults = cls()
+        raw_connection_string = os.getenv("MSSQL_CONNECTION_STRING") or None
+        auth = _resolve_authentication(allow_undetermined=raw_connection_string is not None)
         settings = cls(
-            raw_connection_string=os.getenv("MSSQL_CONNECTION_STRING") or None,
+            raw_connection_string=raw_connection_string,
             driver=os.getenv("MSSQL_DRIVER", defaults.driver),
-            server=os.getenv("MSSQL_SERVER", defaults.server),
-            database=os.getenv("MSSQL_DATABASE", defaults.database),
-            trusted_connection=_as_bool("MSSQL_TRUSTED_CONNECTION", True),
+            server=os.getenv("MSSQL_SERVER", ""),
+            database=os.getenv("MSSQL_DATABASE", ""),
+            auth=auth,
+            trusted_connection=auth is not AuthenticationMode.SQL,
             username=os.getenv("MSSQL_USERNAME") or None,
             password=os.getenv("MSSQL_PASSWORD") or None,
-            encrypt=_as_bool("MSSQL_ENCRYPT", True),
-            trust_server_certificate=_as_bool("MSSQL_TRUST_CERTIFICATE", False),
-            application_intent=os.getenv("MSSQL_APPLICATION_INTENT", "ReadOnly"),
-            connection_timeout=_as_positive_int("MSSQL_TIMEOUT_CONNECTION", 10),
-            query_timeout=_as_positive_int("MSSQL_TIMEOUT_QUERY", 30),
-            max_rows=_as_positive_int("MSSQL_MAX_ROWS", 100),
-            max_query_length=_as_positive_int("MSSQL_MAX_QUERY_LENGTH", 10_000),
-            enable_write_tools=_as_bool("MSSQL_ENABLE_WRITE_TOOLS", False),
+            encrypt=_as_bool("MSSQL_ENCRYPT", defaults.encrypt),
+            trust_server_certificate=_as_bool(
+                "MSSQL_TRUST_CERTIFICATE", defaults.trust_server_certificate
+            ),
+            application_intent=os.getenv("MSSQL_APPLICATION_INTENT", defaults.application_intent),
+            connection_timeout=_as_positive_int(
+                "MSSQL_TIMEOUT_CONNECTION", defaults.connection_timeout
+            ),
+            query_timeout=_as_positive_int("MSSQL_TIMEOUT_QUERY", defaults.query_timeout),
+            max_rows=_as_positive_int("MSSQL_MAX_ROWS", defaults.max_rows),
+            max_query_length=_as_positive_int("MSSQL_MAX_QUERY_LENGTH", defaults.max_query_length),
+            enable_write_tools=_as_bool("MSSQL_ENABLE_WRITE_TOOLS", defaults.enable_write_tools),
             allowed_write_operations=_as_csv_set(
                 "MSSQL_ALLOWED_WRITE_OPERATIONS", defaults.allowed_write_operations
             ),
-            max_affected_rows=_as_positive_int("MSSQL_MAX_AFFECTED_ROWS", 100),
-            change_token_ttl_seconds=_as_positive_int("MSSQL_CHANGE_TOKEN_TTL_SECONDS", 300),
-            max_pending_changes=_as_positive_int("MSSQL_MAX_PENDING_CHANGES", 100),
+            max_affected_rows=_as_positive_int(
+                "MSSQL_MAX_AFFECTED_ROWS", defaults.max_affected_rows
+            ),
+            change_token_ttl_seconds=_as_positive_int(
+                "MSSQL_CHANGE_TOKEN_TTL_SECONDS", defaults.change_token_ttl_seconds
+            ),
+            max_pending_changes=_as_positive_int(
+                "MSSQL_MAX_PENDING_CHANGES", defaults.max_pending_changes
+            ),
             server_name=os.getenv("MCP_SERVER_NAME", defaults.server_name),
-            log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
-            log_format=os.getenv("LOG_FORMAT", "plain").lower(),
+            log_level=os.getenv("LOG_LEVEL", defaults.log_level).upper(),
+            log_format=os.getenv("LOG_FORMAT", defaults.log_format).lower(),
             log_file=Path(value) if (value := os.getenv("LOG_FILE")) else None,
         )
         settings.validate()
         return settings
 
+    @property
+    def authentication_mode(self) -> AuthenticationMode:
+        """Return normalized authentication, including programmatic legacy settings."""
+        return _normalize_auth(self.auth or AuthenticationMode.WINDOWS)
+
     def validate(self) -> None:
         if self.raw_connection_string is not None:
             if not self.raw_connection_string.strip():
-                raise ConfigurationError("MSSQL_CONNECTION_STRING cannot be empty")
+                raise ConfigurationError("MSSQL_CONNECTION_STRING cannot be empty.")
             if "\x00" in self.raw_connection_string:
-                raise ConfigurationError("MSSQL_CONNECTION_STRING cannot contain null bytes")
+                raise ConfigurationError("MSSQL_CONNECTION_STRING cannot contain null bytes.")
         else:
             if not self.driver.strip():
-                raise ConfigurationError("MSSQL_DRIVER cannot be empty")
+                raise ConfigurationError("MSSQL_DRIVER is required.")
             if not self.server.strip():
-                raise ConfigurationError("MSSQL_SERVER cannot be empty")
+                raise ConfigurationError("MSSQL_SERVER is required.")
             if not self.database.strip():
-                raise ConfigurationError("MSSQL_DATABASE cannot be empty")
-            if not self.trusted_connection and not (self.username and self.password):
-                raise ConfigurationError(
-                    "MSSQL_USERNAME and MSSQL_PASSWORD are required when trusted connection is disabled"
-                )
+                raise ConfigurationError("MSSQL_DATABASE is required.")
+            if self.authentication_mode is AuthenticationMode.SQL:
+                if not self.username:
+                    raise ConfigurationError("MSSQL_USERNAME is required when MSSQL_AUTH=sql.")
+                if not self.password:
+                    raise ConfigurationError("MSSQL_PASSWORD is required when MSSQL_AUTH=sql.")
         supported_write_operations = {
             "INSERT",
             "UPDATE",
@@ -173,7 +249,7 @@ class Settings:
             f"TrustServerCertificate={'yes' if self.trust_server_certificate else 'no'}",
             f"ApplicationIntent={self.application_intent}",
         ]
-        if self.trusted_connection:
+        if self.authentication_mode is AuthenticationMode.WINDOWS:
             parts.append("Trusted_Connection=yes")
         else:
             parts.extend(

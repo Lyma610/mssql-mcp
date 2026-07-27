@@ -109,8 +109,11 @@ class DatabaseManager:
                 autocommit=False,
             )
             connection.timeout = self.settings.query_timeout
-        except pyodbc.Error as exc:
-            raise DatabaseConnectionError(f"Unable to connect to SQL Server: {exc}") from exc
+        except pyodbc.Error:
+            raise DatabaseConnectionError(
+                "Unable to connect to SQL Server. Verify the server, authentication, "
+                "TLS settings, and ODBC driver."
+            ) from None
 
         try:
             yield connection

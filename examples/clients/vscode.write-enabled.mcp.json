@@ -7,7 +7,7 @@
       "env": {
         "MSSQL_SERVER": "sql.example.test",
         "MSSQL_DATABASE": "application_sandbox",
-        "MSSQL_TRUSTED_CONNECTION": "yes",
+        "MSSQL_AUTH": "windows",
         "MSSQL_APPLICATION_INTENT": "ReadWrite",
         "MSSQL_ENABLE_WRITE_TOOLS": "yes",
         "MSSQL_ALLOWED_WRITE_OPERATIONS": "INSERT,UPDATE,DELETE",

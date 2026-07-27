@@ -98,7 +98,70 @@ python -m pip install -e ".[dev]"
 
 ## Configuração
 
-Crie um arquivo de ambiente local:
+Na configuração comum, informe apenas servidor, banco de dados e modo de autenticação. Os
+demais valores recebem defaults internos conservadores.
+
+### Windows Authentication
+
+Configuração mínima recomendada para um cliente MCP:
+
+```json
+{
+  "mcpServers": {
+    "mssql": {
+      "command": "python",
+      "args": ["-m", "mssql_mcp"],
+      "env": {
+        "MSSQL_SERVER": "localhost",
+        "MSSQL_DATABASE": "MyDatabase",
+        "MSSQL_AUTH": "windows"
+      }
+    }
+  }
+}
+```
+
+Nenhum usuário ou senha é necessário. O SQL Server recebe a identidade Windows do processo
+iniciado pelo cliente MCP, portanto essa conta precisa ter acesso ao banco de dados alvo.
+
+Os valores `windows`, `WINDOWS` e outras combinações de maiúsculas e minúsculas são
+equivalentes.
+
+### SQL Authentication
+
+Para autenticação SQL, informe também usuário e senha:
+
+```json
+{
+  "mcpServers": {
+    "mssql": {
+      "command": "python",
+      "args": ["-m", "mssql_mcp"],
+      "env": {
+        "MSSQL_SERVER": "localhost",
+        "MSSQL_DATABASE": "MyDatabase",
+        "MSSQL_AUTH": "sql",
+        "MSSQL_USERNAME": "user",
+        "MSSQL_PASSWORD": "password"
+      }
+    }
+  }
+}
+```
+
+Os valores `sql`, `SQL` e outras combinações de maiúsculas e minúsculas são equivalentes.
+Quando esse modo é selecionado, usuário e senha são obrigatórios e validados antes de qualquer
+tentativa de conexão.
+
+> As ferramentas de escrita são desabilitadas por padrão. Operações de escrita só ficam
+> disponíveis após habilitação explícita e configuração de intenção de leitura/escrita.
+
+Nunca grave credenciais reais no repositório. Mantenha a configuração do cliente MCP privada ou
+use o mecanismo de segredos oferecido pelo cliente.
+
+### Arquivo `.env`
+
+Como alternativa ao bloco `env` do cliente, copie o exemplo local:
 
 ```powershell
 Copy-Item .env.example .env
@@ -108,68 +171,58 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-### Variáveis de Ambiente
-
-| Variável | Padrão | Finalidade |
-| --- | --- | --- |
-| `MSSQL_CONNECTION_STRING` | vazio | String de conexão ODBC completa. Quando definida, tem precedência sobre os campos de conexão individuais abaixo. |
-| `MSSQL_DRIVER` | `ODBC Driver 18 for SQL Server` | Nome do driver ODBC instalado. |
-| `MSSQL_SERVER` | `localhost` | Host, instância ou listener do SQL Server. |
-| `MSSQL_DATABASE` | `master` | Banco de dados inicial usado pelas ferramentas de metadados e consulta. |
-| `MSSQL_TRUSTED_CONNECTION` | `yes` | Habilita autenticação integrada do Windows. |
-| `MSSQL_USERNAME` | vazio | Login SQL quando a autenticação confiável está desabilitada. |
-| `MSSQL_PASSWORD` | vazio | Senha SQL quando a autenticação confiável está desabilitada. |
-| `MSSQL_ENCRYPT` | `yes` | Habilita transporte ODBC criptografado. |
-| `MSSQL_TRUST_CERTIFICATE` | `no` | Ignora a validação da cadeia de certificados quando habilitado. Use apenas quando justificado. |
-| `MSSQL_APPLICATION_INTENT` | `ReadOnly` | Declara intenção de leitura para o roteamento do SQL Server. Não concede nem aplica permissões. |
-| `MSSQL_TIMEOUT_CONNECTION` | `10` | Timeout de conexão em segundos. |
-| `MSSQL_TIMEOUT_QUERY` | `30` | Timeout por consulta em segundos. |
-| `MSSQL_MAX_ROWS` | `100` | Número máximo de linhas retornadas por chamada de ferramenta. |
-| `MSSQL_MAX_QUERY_LENGTH` | `10000` | Comprimento máximo aceito de consulta ad hoc. |
-| `MSSQL_ENABLE_WRITE_TOOLS` | `no` | Registra as duas ferramentas de modificação de estado quando habilitado explicitamente. Requer intent `ReadWrite`. |
-| `MSSQL_ALLOWED_WRITE_OPERATIONS` | `INSERT,UPDATE,DELETE` | Lista de operações permitidas separadas por vírgula. DDL nunca é habilitado implicitamente. |
-| `MSSQL_MAX_AFFECTED_ROWS` | `100` | Reverte o DML quando o número de linhas afetadas reportado excede este valor. |
-| `MSSQL_CHANGE_TOKEN_TTL_SECONDS` | `300` | Tempo de vida de uma aprovação de alteração SQL de uso único. |
-| `MSSQL_MAX_PENDING_CHANGES` | `100` | Número máximo de aprovações em memória aguardando execução. |
-| `MCP_SERVER_NAME` | `Microsoft SQL Server Explorer` | Nome apresentado aos clientes MCP. |
-| `LOG_LEVEL` | `INFO` | Nível de logging do Python. |
-| `LOG_FORMAT` | `plain` | `plain` ou `json`. |
-| `LOG_FILE` | vazio | Caminho opcional para arquivo de log com rotação. Logs vão para stderr quando não definido. |
-| `MSSQL_MCP_ENV_FILE` | vazio | Caminho explícito opcional para um arquivo de ambiente. |
-
-### Exemplos de Autenticação
-
-Autenticação integrada do Windows:
-
 ```ini
-MSSQL_SERVER=sql.example.test
-MSSQL_DATABASE=analytics
-MSSQL_TRUSTED_CONNECTION=yes
+MSSQL_SERVER=localhost
+MSSQL_DATABASE=MyDatabase
+MSSQL_AUTH=windows
 ```
 
-Neste modo, nenhum usuário ou senha é necessário. O SQL Server recebe a identidade Windows do processo iniciado pelo cliente MCP. A conta que executa o cliente deve, portanto, ter permissão para acessar o banco de dados alvo.
+### Compatibilidade com configurações existentes
 
-Autenticação SQL:
+Configurações antigas continuam aceitas. A resolução de autenticação segue esta prioridade:
+
+1. `MSSQL_AUTH`, quando definido explicitamente;
+2. `MSSQL_TRUSTED_CONNECTION`, para configurações legadas;
+3. presença de `MSSQL_USERNAME` ou `MSSQL_PASSWORD`, que indica autenticação SQL;
+4. erro de configuração claro quando o modo não pode ser determinado.
+
+Assim, uma configuração antiga com `MSSQL_TRUSTED_CONNECTION=yes` continua usando
+autenticação do Windows; com `no`, continua usando autenticação SQL e exige as credenciais.
+
+## Advanced Configuration
+
+Variáveis de ambiente sobrescrevem os defaults internos somente quando definidas.
+
+| Variável | Descrição | Default | Exemplo | Quando utilizar |
+| --- | --- | --- | --- | --- |
+| `MSSQL_DRIVER` | Nome do driver ODBC instalado. | `ODBC Driver 18 for SQL Server` | `ODBC Driver 17 for SQL Server` | Quando o host usa outro driver compatível. |
+| `MSSQL_ENCRYPT` | Habilita criptografia do transporte ODBC. | `yes` | `no` | Somente quando um ambiente controlado não suporta conexão criptografada. |
+| `MSSQL_TRUST_CERTIFICATE` | Aceita o certificado do servidor sem validar sua cadeia. | `yes` | `no` | Use `no` quando o servidor apresenta um certificado confiável, especialmente em produção. |
+| `MSSQL_APPLICATION_INTENT` | Informa ao SQL Server a intenção de roteamento. | `ReadOnly` | `ReadWrite` | Para roteamento explícito de leitura/escrita; não concede permissões. |
+| `MSSQL_ENABLE_WRITE_TOOLS` | Registra as ferramentas de alteração. | `no` | `yes` | Somente quando operações de escrita forem necessárias e autorizadas. |
+| `MSSQL_TIMEOUT_CONNECTION` | Limite da tentativa de conexão, em segundos. | `10` | `20` | Em redes com latência maior ou diagnóstico de conectividade. |
+| `MSSQL_TIMEOUT_QUERY` | Limite de execução por consulta, em segundos. | `30` | `60` | Para consultas analisadas que legitimamente precisam de mais tempo. |
+| `MSSQL_MAX_ROWS` | Máximo de linhas retornadas por uma chamada. | `500` | `2000` | Quando o consumidor precisa de páginas maiores e o custo foi avaliado. |
+| `MSSQL_MAX_QUERY_LENGTH` | Máximo de caracteres de uma consulta ad hoc. | `10000` | `20000` | Para consultas de leitura maiores já revisadas. |
+
+Booleanos aceitam `yes/no`, `true/false` e `1/0`, sem distinção entre maiúsculas e
+minúsculas. Limites numéricos devem ser inteiros positivos.
+
+### String de conexão completa
+
+`MSSQL_CONNECTION_STRING` continua disponível para provedores que exigem propriedades ODBC
+adicionais e tem precedência sobre os campos individuais de conexão:
 
 ```ini
-MSSQL_TRUSTED_CONNECTION=no
-MSSQL_USERNAME=mcp_reader
-MSSQL_PASSWORD=substitua-pela-senha-real
+MSSQL_CONNECTION_STRING=Driver={ODBC Driver 18 for SQL Server};Server=tcp:sql.example.test,1433;Database=analytics;UID=mcp_reader;PWD=use-a-private-secret;Encrypt=yes;TrustServerCertificate=no;ApplicationIntent=ReadOnly;
 ```
 
-String de conexão ODBC completa:
+Timeouts, limites, logging e controles de escrita continuam sendo lidos separadamente. Como a
+string pode conter uma senha, nunca a registre ou versione.
 
-```ini
-MSSQL_CONNECTION_STRING=Driver={ODBC Driver 18 for SQL Server};Server=tcp:sql.example.test,1433;Database=analytics;UID=mcp_reader;PWD=substitua-pela-senha-real;Encrypt=yes;TrustServerCertificate=no;ApplicationIntent=ReadOnly;
-```
+### Habilitando alterações controladas
 
-`MSSQL_CONNECTION_STRING` tem precedência sobre `MSSQL_DRIVER`, `MSSQL_SERVER`, `MSSQL_DATABASE` e campos de autenticação/TLS. Limites de recursos, timeouts, o nome do servidor e configurações de logging permanecem independentes.
-
-Não coloque credenciais reais em configurações versionadas no controle de código-fonte. Para um cliente MCP local, mantenha sua configuração privada ou referencie segredos através do mecanismo de segredos suportado pelo cliente.
-
-### Habilitando Alterações Controladas
-
-Mantenha o modo somente leitura padrão a menos que alterações sejam necessárias. Uma configuração conservadora somente DML é:
+O servidor permanece somente leitura por padrão. Uma configuração conservadora somente DML é:
 
 ```ini
 MSSQL_APPLICATION_INTENT=ReadWrite
@@ -179,11 +232,30 @@ MSSQL_MAX_AFFECTED_ROWS=25
 MSSQL_CHANGE_TOKEN_TTL_SECONDS=300
 ```
 
-Os valores suportados na lista de operações são `INSERT`, `UPDATE`, `DELETE`, `CREATE_TABLE`, `ALTER_TABLE`, `DROP_TABLE`, `TRUNCATE_TABLE`, `CREATE_INDEX`, `ALTER_INDEX` e `DROP_INDEX`. Adicione DDL destrutivo apenas após revisar permissões, backups e o comportamento de confirmação do cliente.
+Os valores suportados na lista de operações são `INSERT`, `UPDATE`, `DELETE`, `CREATE_TABLE`,
+`ALTER_TABLE`, `DROP_TABLE`, `TRUNCATE_TABLE`, `CREATE_INDEX`, `ALTER_INDEX` e `DROP_INDEX`.
+Adicione DDL destrutivo apenas após revisar permissões, backups e o comportamento de confirmação
+do cliente.
 
-Para uma string ODBC completa, use `ApplicationIntent=ReadWrite` ou omita essa chave. Defina também a flag de segurança `MSSQL_APPLICATION_INTENT=ReadWrite` separadamente para que a validação de inicialização possa confirmar que o modo de escrita foi intencional.
+| Variável adicional | Default | Finalidade |
+| --- | --- | --- |
+| `MSSQL_ALLOWED_WRITE_OPERATIONS` | `INSERT,UPDATE,DELETE` | Lista de operações de escrita permitidas. |
+| `MSSQL_MAX_AFFECTED_ROWS` | `100` | Faz rollback de DML que exceda o limite de linhas afetadas. |
+| `MSSQL_CHANGE_TOKEN_TTL_SECONDS` | `300` | Validade da aprovação de alteração de uso único. |
+| `MSSQL_MAX_PENDING_CHANGES` | `100` | Limite de aprovações mantidas em memória. |
 
-O template [vscode.write-enabled.mcp.json](examples/clients/vscode.write-enabled.mcp.json) usa Autenticação do Windows contra um banco de dados sandbox. Autenticação SQL e uma string de conexão completa funcionam da mesma forma.
+Para uma string ODBC completa, use `ApplicationIntent=ReadWrite` ou omita essa propriedade.
+Mantenha também a variável de intenção acima para que a inicialização confirme a escolha.
+
+### Runtime e logging
+
+| Variável | Default | Finalidade |
+| --- | --- | --- |
+| `MCP_SERVER_NAME` | `Microsoft SQL Server Explorer` | Nome apresentado aos clientes MCP. |
+| `LOG_LEVEL` | `INFO` | Nível de logging do Python. |
+| `LOG_FORMAT` | `plain` | Formato `plain` ou `json`. |
+| `LOG_FILE` | vazio | Arquivo opcional com rotação; sem ele, logs vão para stderr. |
+| `MSSQL_MCP_ENV_FILE` | vazio | Caminho explícito para um arquivo de ambiente. |
 
 ## Executando o Servidor
 
@@ -219,12 +291,12 @@ Exemplo:
 {
   "mcpServers": {
     "mssql": {
-      "command": "C:\\caminho\\para\\mssql-mcp\\.venv\\Scripts\\python.exe",
+      "command": "python",
       "args": ["-m", "mssql_mcp"],
       "env": {
-        "MSSQL_SERVER": "sql.example.test",
-        "MSSQL_DATABASE": "analytics",
-        "MSSQL_TRUSTED_CONNECTION": "yes"
+        "MSSQL_SERVER": "localhost",
+        "MSSQL_DATABASE": "MyDatabase",
+        "MSSQL_AUTH": "windows"
       }
     }
   }
@@ -235,28 +307,24 @@ A autenticação SQL pode ser configurada por servidor MCP:
 
 ```json
 {
-  "servers": {
-    "mssql-explorer": {
-      "type": "stdio",
-      "command": "C:\\caminho\\para\\.venv\\Scripts\\python.exe",
+  "mcpServers": {
+    "mssql": {
+      "command": "python",
       "args": ["-m", "mssql_mcp"],
       "env": {
-        "MSSQL_SERVER": "tcp:sql.example.test,1433",
-        "MSSQL_DATABASE": "analytics",
-        "MSSQL_TRUSTED_CONNECTION": "no",
-        "MSSQL_USERNAME": "mcp_reader",
-        "MSSQL_PASSWORD": "substitua-pela-senha-real",
-        "MSSQL_ENCRYPT": "yes",
-        "MSSQL_TRUST_CERTIFICATE": "no"
+        "MSSQL_SERVER": "localhost",
+        "MSSQL_DATABASE": "MyDatabase",
+        "MSSQL_AUTH": "sql",
+        "MSSQL_USERNAME": "user",
+        "MSSQL_PASSWORD": "password"
       }
     }
   }
 }
 ```
 
-Alternativamente, defina apenas `MSSQL_CONNECTION_STRING` dentro de `env` quando o provedor de banco de dados exigir opções ODBC adicionais. A string completa pode usar credenciais SQL (`UID` e `PWD`) ou autenticação do Windows (`Trusted_Connection=yes`). Quando `MSSQL_CONNECTION_STRING` está presente, ela é usada diretamente e tem precedência sobre os campos de conexão individuais.
-
-Cada entrada de servidor pode apontar para um banco de dados diferente fornecendo um bloco de ambiente diferente. Templates prontos para uso estão disponíveis em `examples/clients/vscode.windows-auth.mcp.json` e `examples/clients/vscode.connection-string.mcp.json`.
+Cada entrada de servidor pode apontar para um banco de dados diferente fornecendo um bloco de
+ambiente diferente. Templates prontos para uso estão disponíveis em `examples/clients`.
 
 Reinicie o cliente MCP após alterar sua configuração.
 
@@ -283,7 +351,7 @@ As ferramentas retornam um objeto consistente:
   "row_count": 0,
   "error": null,
   "metadata": {
-    "limit": 100,
+    "limit": 500,
     "offset": 0,
     "has_more": false,
     "elapsed_ms": 12
@@ -460,11 +528,13 @@ import pyodbc
 print(pyodbc.drivers())
 ```
 
-Defina `MSSQL_DRIVER` com um nome instalado. Instale o Microsoft ODBC Driver 18 quando ausente.
+Use o override de driver descrito em Advanced Configuration com um nome instalado. Instale o
+Microsoft ODBC Driver 18 quando ausente.
 
 ### Falha na validação do certificado
 
-Use um certificado confiável pelo host MCP. `MSSQL_TRUST_CERTIFICATE=yes` está disponível para ambientes de desenvolvimento controlados, mas enfraquece a validação de identidade TLS.
+Use um certificado confiável pelo host MCP e desabilite a confiança automática no certificado,
+conforme descrito em Advanced Configuration, para validar a identidade TLS em produção.
 
 ### Falha de login
 
@@ -476,11 +546,14 @@ A visibilidade de metadados do SQL Server segue as permissões. Conceda apenas a
 
 ### Consulta expirou
 
-Reduza o escopo da consulta, adicione predicados seletivos, verifique índices ou ajuste `MSSQL_TIMEOUT_QUERY` após avaliar o impacto na carga de trabalho.
+Reduza o escopo da consulta, adicione predicados seletivos, verifique índices ou ajuste o timeout
+avançado após avaliar o impacto na carga de trabalho.
 
 ### Resposta da ferramenta truncada
 
-Use paginação para ferramentas de catálogo. Para `execute_select`, adicione um predicado seletivo ou uma cláusula `TOP` determinística. `MSSQL_MAX_ROWS` é um limite de segurança de saída.
+Use paginação para ferramentas de catálogo. Para `execute_select`, adicione um predicado seletivo
+ou uma cláusula `TOP` determinística. O máximo de linhas configurado é um limite de segurança de
+saída.
 
 ### Cliente MCP não consegue iniciar o servidor
 

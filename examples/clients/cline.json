@@ -7,7 +7,7 @@
       "env": {
         "MSSQL_SERVER": "sql.example.test",
         "MSSQL_DATABASE": "analytics",
-        "MSSQL_TRUSTED_CONNECTION": "yes"
+        "MSSQL_AUTH": "windows"
       }
     }
   }

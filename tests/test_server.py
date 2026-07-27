@@ -24,7 +24,10 @@ EXPECTED_TOOLS = {
 
 
 def test_server_registers_expected_read_only_tools_by_default() -> None:
-    server = create_server(Settings(), FakeDatabase())
+    server = create_server(
+        Settings(server="sql.example.test", database="analytics"),
+        FakeDatabase(),
+    )
 
     tools = asyncio.run(server.list_tools())
 
@@ -33,8 +36,32 @@ def test_server_registers_expected_read_only_tools_by_default() -> None:
     assert all(tool.annotations and tool.annotations.destructiveHint is False for tool in tools)
 
 
+def test_registered_mcp_tool_executes_with_existing_contract() -> None:
+    server = create_server(
+        Settings(server="sql.example.test", database="analytics"),
+        FakeDatabase(latency_ms=8),
+    )
+
+    _, structured_result = asyncio.run(server.call_tool("health_check", {}))
+
+    assert structured_result == {
+        "success": True,
+        "data": {
+            "status": "ok",
+            "database": "analytics",
+            "application_intent": "ReadOnly",
+            "latency_ms": 8,
+        },
+        "row_count": 1,
+        "error": None,
+        "metadata": {},
+    }
+
+
 def test_server_registers_opt_in_change_tools_with_risk_annotations() -> None:
     settings = Settings(
+        server="sql.example.test",
+        database="analytics",
         application_intent="ReadWrite",
         enable_write_tools=True,
         allowed_write_operations=frozenset({"INSERT", "UPDATE", "DELETE"}),
